@@ -4,6 +4,7 @@
   "description": "Simple and scalable state management for React applications",
   "main": "dist/index.js",
   "module": "dist/index.esm.js",
+  "module-es6+": "dist/index.es6.js",
   "scripts": {
     "build": "rollup -c",
     "dev": "rollup -c -w",
@@ -13,6 +14,7 @@
     "pretest": "yarn run build"
   },
   "dependencies": {
+    "core-js": "^3.4.8",
     "lodash.clone": "^4.5.0",
     "lodash.defer": "^4.1.0",
     "lodash.get": "^4.4.2",
@@ -41,6 +43,7 @@
     "jest-emotion": "^10.0.17",
     "react-dom": "^16.11.0",
     "rollup": "^1.26.3",
+    "rollup-plugin-babel": "^4.3.3",
     "rollup-plugin-commonjs": "^10.1.0",
     "rollup-plugin-node-resolve": "^5.2.0",
     "rollup-plugin-sucrase": "^2.1.0",
@@ -57,11 +60,11 @@
       "<rootDir>/test/setup.js"
     ],
     "testPathIgnorePatterns": [
-        "<rootDir>/test/setup.js"
+      "<rootDir>/test/setup.js"
     ],
     "snapshotSerializers": [
-        "jest-emotion",
-        "enzyme-to-json/serializer"
+      "jest-emotion",
+      "enzyme-to-json/serializer"
     ]
   },
   "repository": "git@github.com:riptano/statium.git",

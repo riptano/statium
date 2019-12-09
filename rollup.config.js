@@ -1,17 +1,11 @@
 import resolve from 'rollup-plugin-node-resolve';
 import commonjs from 'rollup-plugin-commonjs';
+import babel from 'rollup-plugin-babel';
 import sucrase from 'rollup-plugin-sucrase';
 import pkg from './package.json';
 
-export default {
+const config = {
     input: 'src/index.js',
-    output: [{
-        file: pkg.main,
-        format: 'cjs',
-    }, {
-        file: pkg.module,
-        format: 'es',
-    }],
     
     // self-serve-ui project already includes React and Lodash as dependencies,
     // no reason to bundle these with Statium
@@ -36,6 +30,37 @@ export default {
         
         warn(warning);
     },
+};
+
+export default [{
+    ...config,
+    
+    output: [{
+        file: pkg.main,
+        format: 'cjs',
+    }, {
+        file: pkg.module,
+        format: 'es',
+    }],
+    
+    plugins: [
+        resolve({
+            extensions: ['.js']
+        }),
+        babel({
+            exclude: ['node_modules/**'],
+            runtimeHelpers: true,
+        }),
+        commonjs(),
+    ],
+}, {
+    ...config,
+    
+    output: [{
+        file: pkg["module-es6+"],
+        format: 'es',
+    }],
+    
     plugins: [
         resolve({
             extensions: ['.js']
@@ -46,4 +71,4 @@ export default {
         }),
         commonjs(),
     ],
-}
+}];
