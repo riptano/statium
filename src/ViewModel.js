@@ -6,7 +6,7 @@ import loClone from 'lodash.clone';
 
 import { ViewModelContext } from './context';
 import { getId, chain, getKeys, getKeyPrefix, normalizeProtectedKeys } from './util';
-import { validateInitialState, accessorizeViewModel } from './accessors';
+import { validateInitialState, accessorizeViewModel, accessorType } from './accessors';
 import { ViewController } from './ViewController';
 
 const dotRe = /\./;
@@ -52,7 +52,15 @@ class ViewModelState extends React.Component {
     static getDerivedStateFromProps(props, localState) {
         const { vm, applyState } = props;
         
-        return applyState ? applyState(localState, vm.$get) : null;
+        if (applyState) {
+            const result = applyState(localState, vm.$multiGet);
+            
+            // If applyState() does not return a value, result will be `undefined`.
+            // React complains about this, loudly; returning `null` instead is ok.
+            return result == null ? null : result;
+        }
+        
+        return null;
     }
     
     constructor(props) {
@@ -68,7 +76,7 @@ class ViewModelState extends React.Component {
         }
         
         if (typeof initialState === 'function') {
-            initialState = initialState(vm.$retrieve);
+            initialState = initialState(vm.$multiGet);
         }
         
         if (process.env.NODE_ENV !== 'production') {
@@ -92,7 +100,7 @@ class ViewModelState extends React.Component {
         }
         
         const setter = value => vm.$set(key, value);
-        setter.$accessorType = 'set';
+        setter[accessorType] = 'set';
         
         return setter;
     }
@@ -114,9 +122,7 @@ class ViewModelState extends React.Component {
         const { vm, children } = me.props;
         
         vm.state = chain(vm.parent.state, me.state);
-        
-        const store = { ...vm.data, ...me.state };
-        vm.store = chain(vm.parent.store, store);
+        vm.store = chain(vm.parent.store, vm.data, me.state);
         
         vm.protectedKeys = me.protectedKeys;
         vm.getKeySetter = me.getKeySetter;
@@ -150,6 +156,9 @@ export const ViewModel = props => (
             const data = chain(parent.data, props.data);
             const state = chain(parent.state, {});
             
+            // At this point, our store contains only data
+            const store = chain(parent.store, props.data);
+            
             const vm = accessorizeViewModel({
                 id: 'id' in props ? props.id : getId('ViewModel'),
                 parent,
@@ -157,9 +166,9 @@ export const ViewModel = props => (
                 data,
                 state,
                 // This property gets overwritten by ViewModelState.render(); the purpose
-                // of having it here is to provide initial empty state object for
-                // applyState()
-                store: { ...data, ...state },
+                // of having it here is to provide initial store object for applyState()
+                // and initialState()
+                store,
             });
             
             return (

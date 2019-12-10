@@ -261,7 +261,7 @@ describe("ViewController", () => {
             expect(warning).toBe(null);
         });
         
-        test("it should allow setting keys in different ViewModel owners, and warn about it", async () => {
+        test("it should allow setting keys in different ViewModel owners", async () => {
             let setter, have;
         
             mount(
@@ -294,13 +294,6 @@ describe("ViewController", () => {
             await setter(want);
             
             expect(have).toEqual(want);
-            expect(warning).toBe(
-                'Setting multiple key/value pairs belonging to different ViewModels ' +
-                'simultaneously can lead to performance issues because of extra ' +
-                'rendering involved. Offending key/value pairs: key "taal" is defined ' +
-                'in ViewModel with id: "parent"; keys "wuuq", "boork" are defined ' +
-                'in ViewModel with id: "child".'
-            );
         });
         
         test("when setting keys in different ViewModels, it should follow the order of parent to child ViewModel", async () => {

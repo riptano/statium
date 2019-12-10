@@ -3,6 +3,7 @@ import { mount } from 'enzyme';
 import sleep from './sleep';
 
 import ViewModel, { Bind } from '../src';
+import { accessorType } from '../src/accessors.js';
 
 const valueTester = want => 
     jest.fn(have => {
@@ -103,6 +104,22 @@ describe("ViewModel component", () => {
                 expect(tester).toHaveBeenCalled();
             });
             
+            test("ViewModel should pass multi-getter to initialState function", () => {
+                let values;
+                
+                mount(
+                    <ViewModel data={{ krabbe: "dunz", byrge: "aax", }}>
+                        <ViewModel initialState={$get => {
+                            values = $get('krabbe', 'byrge');
+                            
+                            return {};
+                        }} />
+                    </ViewModel>
+                );
+                
+                expect(values).toEqual(['dunz', 'aax']);
+            });
+            
             test("ViewModel should throw an exception on invalid initialState", () => {
                 expect(() => {
                     mount(
@@ -142,11 +159,13 @@ describe("ViewModel component", () => {
         
         describe("modifying", () => {
             test("ViewModel should call applyState modifier on rendering", () => {
-                let state, getter, result;
+                let state, getter, values, result;
                 
                 const applier = jest.fn((currentState, $get) => {
                     state = currentState;
                     getter = $get;
+                    
+                    values = $get('kunwa', 'mombo');
                     
                     return {
                         opptu: ["durp"],
@@ -156,7 +175,7 @@ describe("ViewModel component", () => {
                 });
                 
                 mount(
-                    <ViewModel data={{ kunwa: "tyxi" }}
+                    <ViewModel data={{ kunwa: "tyxi", mombo: "qwee" }}
                         initialState={{ opptu: "yarf" }}
                         applyState={applier}>
                         <Bind props={["kunwa", "opptu", "fugh", "runk"]}>
@@ -172,7 +191,9 @@ describe("ViewModel component", () => {
                 });
                 
                 expect(typeof getter).toBe('function');
-                expect(getter.$accessorType).toBe('get');
+                expect(getter[accessorType]).toBe('get');
+                
+                expect(values).toEqual(['tyxi', 'qwee']);
                 
                 expect(result).toEqual({
                     kunwa: "tyxi",

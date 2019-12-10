@@ -2,7 +2,7 @@ import React from 'react';
 import defer from 'lodash.defer';
 
 import { ViewModelContext, ViewControllerContext, rootViewController } from './context';
-import { multiGet, multiSet } from './accessors';
+import { multiGet, multiSet, accessorType } from './accessors';
 import { getId, findOwner } from './util';
 
 export const expose = ({ $get, $set, $dispatch }) => ({
@@ -25,13 +25,13 @@ export const dispatcher = (vc, event, payload) => {
 
 const accessorizeViewController = (vm, vc) => {
     vc.$get = (...args) => multiGet(vm, args);
-    vc.$get.$accessorType = 'get';
+    vc.$get[accessorType] = 'get';
     
     vc.$set = (...args) => multiSet(vm, ...args);
-    vc.$set.$accessorType = 'set';
+    vc.$set[accessorType] = 'set';
     
     vc.$dispatch = (event, ...payload) => dispatcher(vc, event, payload);
-    vc.$dispatch.$accessorType = 'dispatch';
+    vc.$dispatch[accessorType] = 'dispatch';
     
     return vc;
 };

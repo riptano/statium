@@ -4,7 +4,7 @@ let idCounter = 0;
 
 export const getId = prefix => `${prefix}-${++idCounter}`;
 
-export const chain = (proto, props) => Object.assign(Object.create(proto), props);
+export const chain = (proto, ...sources) => Object.assign(Object.create(proto), ...sources);
 
 export const setterNameForKey = key => `set${upperFirst(key)}`;
 

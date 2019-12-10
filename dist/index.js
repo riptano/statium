@@ -311,8 +311,12 @@ var idCounter = 0;
 var getId = function getId(prefix) {
   return "".concat(prefix, "-").concat(++idCounter);
 };
-var chain = function chain(proto, props) {
-  return Object.assign(Object.create(proto), props);
+var chain = function chain(proto) {
+  for (var _len = arguments.length, sources = new Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
+    sources[_key - 1] = arguments[_key];
+  }
+
+  return Object.assign.apply(Object, [Object.create(proto)].concat(sources));
 };
 var setterNameForKey = function setterNameForKey(key) {
   return "set".concat(upperFirst(key));
@@ -404,11 +408,11 @@ var normalizeProtectedKeys = function normalizeProtectedKeys(keys) {
 
       try {
         for (var _iterator = getKeys(keys)[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
-          var _key = _step.value;
-          var _event = keys[_key];
+          var _key2 = _step.value;
+          var _event = keys[_key2];
 
           var _normalizeProtectedKe5 = normalizeProtectedKey({
-            key: _key,
+            key: _key2,
             event: _event
           }),
               _normalizeProtectedKe6 = _slicedToArray(_normalizeProtectedKe5, 2),
@@ -438,146 +442,6 @@ var normalizeProtectedKeys = function normalizeProtectedKeys(keys) {
 
   return validatedKeys;
 };
-
-/**
- *
- * Convenience function that accepts ViewModel binding definition in various formats,
- * including expanded format for more settings, as well as some shortcut forms, does
- * certain correctness checks, and reduces binding definitions to normalized form
- * that is then used in `mapProps` at value retrieval time.
- *
- * Normalization is done once at consumer component rendering time as opposed to
- * value retrieval time for the following reasons:
- *
- * * It allows simplifying the code that works with binding definitions (`mapProps`),
- * because there is no need for it to check for all possible binding options that might be
- * supported by ViewModel now or in the future.
- *
- * * It allows keeping the code that does correctness checks in one place, which helps
- * with readability and maintainability.
- *
- * * It allows doing correctness checks at the component rendering time, or at component
- * constructor definition time (when used via `withBindings` HOC), as opposed to every time
- * a key/value pair is retrieved from ViewModel store.
- *
- * * It provides for better developer experience by giving an option to define bindings
- * in shortcut forms instead of having to spell out a normalized form each time. This
- * improves code readability.
- *
- * * It is a form of preemptive performance optimization where the cost of correctness
- * checks and supporting various shortcut forms for binding definitions is not incurred
- * each time a key/value pair is retrieved for a consumer component, but instead is incurred
- * only once.
- *
- * @params {Object|Array|String} bindings The binding definitions to normalize. The following
- * forms are supported:
- *
- * - A single string; means that consumer component is bound to a single key in ViewModel store,
- * with the string value being the name of the key to bind to, as well as the name of the
- * prop to inject into consumer component. The binding is assumed to be one-way (read only),
- * with value from ViewModel store being injected into consumer component's props without
- * ability for the component to change the value.
- *
- * Example: `normalizeBindings('foo')` -> bind a component one way to a key named 'foo' in the
- * ViewModel store, and inject the prop named 'foo' with the value from the ViewModel store
- * into consumer component's props at rendering time.
- *
- * - An array of binding definitions. In this case definitions are iterated over
- * and normalized individually. Each element of the array can be a string (see above),
- * or an object with binding options (see Binding options below).
- *
- * Example:
- *
- *      normalizeBindings([
- *          'foo', // Bind to 'foo' key in ViewModel store, inject 'foo' prop, one way
- *          'bar', // -- '' --
- *          { ... } // See below
- *      ])
- * 
- * - An object of binding definitions. In this case the keys of the object are interpreted
- * as *prop* name to be injected into consumer component, and the value of the definition
- * object can be either:
- *
- * 1. A string, in which case it is assumed to be the name of the ViewModel store key
- * to bind to, in one-way mode
- * 2. An object with binding options, see Binding options below.
- *
- * Example:
- *
- *      normalizeBindings({
- *          foo: 'bar',  // Bind consumer component to key 'bar' in ViewModel store,
- *                       // inject the value as prop named 'foo', one way
- *          qux: 'fred', // Bind to key 'fred', inject as prop 'qux', one way
- *          plugh: {
- *              ...      // See Binding options below
- *          }
- *      })
- *
- * Binding options provided via an object allow expanded configuration of a binding.
- * The following options are supported:
- *
- * - `key`: the name of the key in ViewModel store. Key name is the only mandatory option
- * that should be provided. 
- * - `prop`: the name of the prop to inject into consumer component's props at render time,
- * with value retrieved from ViewModel store. If `prop` is omitted, it is assumed to be
- * equal to `key` option.
- * - `publish`: Can be either a Boolean `true`, or a String. In both cases this means to bind
- * two way (read-write), and consumer component will receive a setter function in its props
- * along with the value, similar to React `useState` hook: `[foo, setFoo] = useState(0)`.
- * 
- * When `publish` value is a string, it is interpreted as the key name to update when
- * setter function is called. When `publish` value is a Boolean, it is interpreted as a
- * shortcut to indicate two-way binding, and published key name is assumed to be the same
- * as bound key name (`key` above). The `publish` value of `false` is legal but is
- * meaningless and is not recommended as its meaning is the same as the default
- * (one-way binding).
- *
- * - `setterName`: The name of the prop used to pass the setter function into consumer
- * component props. If not provided, a default setter prop name of `setFoo` is used,
- * where `Foo` is a capitalized name of the published prop (see `publish`). This is
- * sometimes useful for form fields, where the input value might be desired to be passed
- * in the `value` prop, but the setter should be named `onChange` or similar.
- *
- * The setter function needs to be called with a single argument, which is the new value
- * for the ViewModel store key.
- *
- * Example:
- *
- *      {
- *          // Bind go key `blerg` in ViewModel store
- *          key: 'blerg',
- *
- *          // Inject the value in prop named `ghek` into consumer component
- *          prop: 'ghek',
- *
- *          // Bind two-way, equivalent to `publish: 'blerg'`
- *          publish: true,
- *          
- *          // Consumer component will receive setter function in `onChange` prop
- *          setterName: 'onChange', 
- *      }
- *
- *
- * @return {Object[]} Array of normalized bindings in the form of:
- *
- *      [{
- *          key: 'The ViewModel store key to bind to',
- *          propName: 'The prop name to inject',
- *          publish: 'The key name to publish',
- *          setterName: 'Setter function prop name',
- *      }, {
- *          ...
- *      }]
- *
- * Note that this is a *private* function that is not intended to be used outside of
- * this module, and is not a part of the public ViewModel API. It is exported from this
- * module solely for the purpose of unit testing. Private function API is not guaranteed
- * to be stable and might change at any time without notice. This documentation blob
- * covers only input and output of this private function, with brief explanations of
- * ViewModel features, but does not strive to cover public ViewModel API in full.
- *
- * @private
- */
 
 var normalizeBindings = function normalizeBindings() {
   var bindings = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
@@ -707,6 +571,8 @@ var mapPropsToArray = function mapPropsToArray(vm, bindings) {
   });
 };
 
+var accessorType = Symbol('accessorType');
+
 var retrieve = function retrieve(vm, key) {
   return vm.formulas[key] ? vm.formulas[key](vm.$retrieve) : vm.$get(key);
 };
@@ -820,28 +686,6 @@ var multiSet = function multiSet(vm, key, value) {
     }
   }
 
-  if (process.env.NODE_ENV !== 'production') {
-    if (ownerMap.size > 1) {
-      var offendingKeys = _toConsumableArray(ownerMap.values()).map(function (_ref) {
-        var owner = _ref.owner,
-            values = _ref.values;
-        var keys = getKeys(values).map(function (k) {
-          return "\"".concat(String(k), "\"");
-        });
-
-        if (!keys.length) {
-          return '';
-        } else if (keys.length === 1) {
-          return "key ".concat(keys[0], " is defined in ViewModel with id: \"").concat(owner.id, "\"");
-        } else {
-          return "keys ".concat(keys.join(', '), " are defined in ViewModel with id: \"").concat(owner.id, "\"");
-        }
-      });
-
-      console.warn("Setting multiple key/value pairs belonging to different ViewModels " + "simultaneously can lead to performance issues because of extra rendering " + "involved. Offending key/value pairs: ".concat(offendingKeys.join('; '), "."));
-    }
-  }
-
   var sortedQueue = _toConsumableArray(ownerMap.values()).sort(function (a, b) {
     // Shouldn't ever happen but hey...
     if (process.env.NODE_ENV !== 'production') {
@@ -885,23 +729,33 @@ var accessorizeViewModel = function accessorizeViewModel(vm) {
     return retrieve(vm, key);
   };
 
-  vm.$retrieve.$accessorType = 'retrieve';
+  vm.$retrieve[accessorType] = 'retrieve';
 
   vm.$get = function (key) {
     return getter(vm, key);
   };
 
-  vm.$get.$accessorType = 'get';
+  vm.$get[accessorType] = 'get';
 
-  vm.$set = function () {
+  vm.$multiGet = function () {
     for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
       args[_key] = arguments[_key];
+    }
+
+    return multiGet(vm, args);
+  };
+
+  vm.$multiGet[accessorType] = 'get';
+
+  vm.$set = function () {
+    for (var _len2 = arguments.length, args = new Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
+      args[_key2] = arguments[_key2];
     }
 
     return setter.apply(void 0, [vm].concat(args));
   };
 
-  vm.$set.$accessorType = 'set';
+  vm.$set[accessorType] = 'set';
   vm.$dispatch = vm.$dispatch || vm.parent.$dispatch;
   return vm;
 };
@@ -946,7 +800,7 @@ var accessorizeViewController = function accessorizeViewController(vm, vc) {
     return multiGet(vm, args);
   };
 
-  vc.$get.$accessorType = 'get';
+  vc.$get[accessorType] = 'get';
 
   vc.$set = function () {
     for (var _len2 = arguments.length, args = new Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
@@ -956,7 +810,7 @@ var accessorizeViewController = function accessorizeViewController(vm, vc) {
     return multiSet.apply(void 0, [vm].concat(args));
   };
 
-  vc.$set.$accessorType = 'set';
+  vc.$set[accessorType] = 'set';
 
   vc.$dispatch = function (event) {
     for (var _len3 = arguments.length, payload = new Array(_len3 > 1 ? _len3 - 1 : 0), _key3 = 1; _key3 < _len3; _key3++) {
@@ -966,7 +820,7 @@ var accessorizeViewController = function accessorizeViewController(vm, vc) {
     return dispatcher(vc, event, payload);
   };
 
-  vc.$dispatch.$accessorType = 'dispatch';
+  vc.$dispatch[accessorType] = 'dispatch';
   return vc;
 };
 
@@ -1176,7 +1030,15 @@ function (_React$Component) {
     value: function getDerivedStateFromProps(props, localState) {
       var vm = props.vm,
           applyState = props.applyState;
-      return applyState ? applyState(localState, vm.$get) : null;
+
+      if (applyState) {
+        var result = applyState(localState, vm.$multiGet); // If applyState() does not return a value, result will be `undefined`.
+        // React complains about this, loudly; returning `null` instead is ok.
+
+        return result == null ? null : result;
+      }
+
+      return null;
     }
   }]);
 
@@ -1197,7 +1059,7 @@ function (_React$Component) {
     }
 
     if (typeof initialState === 'function') {
-      initialState = initialState(vm.$retrieve);
+      initialState = initialState(vm.$multiGet);
     }
 
     if (process.env.NODE_ENV !== 'production') {
@@ -1230,7 +1092,7 @@ function (_React$Component) {
         return vm.$set(key, value);
       };
 
-      setter.$accessorType = 'set';
+      setter[accessorType] = 'set';
       return setter;
     }
   }, {
@@ -1253,10 +1115,7 @@ function (_React$Component) {
           vm = _me$props.vm,
           children = _me$props.children;
       vm.state = chain(vm.parent.state, me.state);
-
-      var store = _objectSpread2({}, vm.data, {}, me.state);
-
-      vm.store = chain(vm.parent.store, store);
+      vm.store = chain(vm.parent.store, vm.data, me.state);
       vm.protectedKeys = me.protectedKeys;
       vm.getKeySetter = me.getKeySetter;
       vm.setState = me.setViewModelState;
@@ -1287,7 +1146,9 @@ var ViewModel = function ViewModel(props) {
     var parent = _ref.vm;
     var formulas = chain(parent.formulas, props.formulas);
     var data = chain(parent.data, props.data);
-    var state = chain(parent.state, {});
+    var state = chain(parent.state, {}); // At this point, our store contains only data
+
+    var store = chain(parent.store, props.data);
     var vm = accessorizeViewModel({
       id: 'id' in props ? props.id : getId('ViewModel'),
       parent: parent,
@@ -1295,9 +1156,9 @@ var ViewModel = function ViewModel(props) {
       data: data,
       state: state,
       // This property gets overwritten by ViewModelState.render(); the purpose
-      // of having it here is to provide initial empty state object for
-      // applyState()
-      store: _objectSpread2({}, data, {}, state)
+      // of having it here is to provide initial store object for applyState()
+      // and initialState()
+      store: store
     });
     return React__default.createElement(ViewModelState, {
       vm: vm,

@@ -3,6 +3,8 @@ import loGet from 'lodash.get';
 import { validKey, getKeys, getKeyPrefix, findOwner } from './util';
 import { normalizeBindings, mapProps, mapPropsToArray } from './bindings';
 
+export const accessorType = Symbol('accessorType');
+
 const retrieve = (vm, key) =>
     vm.formulas[key] ? vm.formulas[key](vm.$retrieve) : vm.$get(key);
 
@@ -98,30 +100,6 @@ export const multiSet = (vm, key, value) => {
         o.values[k] = kv[k];
     }
     
-    if (process.env.NODE_ENV !== 'production') {
-        if (ownerMap.size > 1) {
-            const offendingKeys = [...ownerMap.values()].map(({ owner, values }) => {
-                const keys = getKeys(values).map(k => `"${String(k)}"`);
-            
-                if (!keys.length) {
-                    return '';
-                }
-                else if (keys.length === 1) {
-                    return `key ${keys[0]} is defined in ViewModel with id: "${owner.id}"`;
-                }
-                else {
-                    return `keys ${keys.join(', ')} are defined in ViewModel with id: "${owner.id}"`;
-                }
-            });
-            
-            console.warn(
-                `Setting multiple key/value pairs belonging to different ViewModels ` +
-                `simultaneously can lead to performance issues because of extra rendering ` +
-                `involved. Offending key/value pairs: ${offendingKeys.join('; ')}.`
-            );
-        }
-    }
-    
     const sortedQueue = [...ownerMap.values()].sort((a, b) => {
         // Shouldn't ever happen but hey...
         if (process.env.NODE_ENV !== 'production') {
@@ -142,13 +120,16 @@ export const multiSet = (vm, key, value) => {
 
 export const accessorizeViewModel = vm => {
     vm.$retrieve = key => retrieve(vm, key);
-    vm.$retrieve.$accessorType = 'retrieve';
+    vm.$retrieve[accessorType] = 'retrieve';
     
     vm.$get = key => getter(vm, key);
-    vm.$get.$accessorType = 'get';
+    vm.$get[accessorType] = 'get';
+    
+    vm.$multiGet = (...args) => multiGet(vm, args);
+    vm.$multiGet[accessorType] = 'get';
     
     vm.$set = (...args) => setter(vm, ...args);
-    vm.$set.$accessorType = 'set';
+    vm.$set[accessorType] = 'set';
     
     vm.$dispatch = vm.$dispatch || vm.parent.$dispatch;
     

@@ -3,6 +3,7 @@ import { mount } from 'enzyme';
 import sleep from './sleep';
 
 import ViewModel, { Bind } from '../src';
+import { accessorType } from '../src/accessors.js';
 
 const valueTester = want => 
     jest.fn(have => {
@@ -234,7 +235,7 @@ describe("accessors", () => {
                 );
                 
                 expect(typeof getter).toBe('function');
-                expect(getter.$accessorType).toBe('retrieve');
+                expect(getter[accessorType]).toBe('retrieve');
             });
             
             test("formula execution result should be passed as bound value", () => {
