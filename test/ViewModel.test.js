@@ -179,8 +179,8 @@ describe("ViewModel component", () => {
                         initialState={{ opptu: "yarf" }}
                         applyState={applier}>
                         <Bind props={["kunwa", "opptu", "fugh", "runk"]}>
-                            { values => {
-                                result = values;
+                            { props => {
+                                result = props;
                             }}
                         </Bind>
                     </ViewModel>

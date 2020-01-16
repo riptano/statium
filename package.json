@@ -8,9 +8,9 @@
   "scripts": {
     "build": "rollup -c",
     "dev": "rollup -c -w",
-    "lint": "eslint src",
+    "lint": "eslint src test",
     "test": "jest",
-    "prebuild": "eslint src",
+    "prebuild": "yarn run lint",
     "pretest": "yarn run build"
   },
   "dependencies": {

@@ -10,6 +10,7 @@ const valueTester = want =>
 
 describe("Bind component", () => {
     describe("with valid bindings", () => {
+        // eslint-disable-next-line jest/expect-expect
         test("it should allow binding to ViewModel keys", () => {
             const data = {
                 foo: 'bar',
