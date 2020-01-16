@@ -905,12 +905,19 @@ function (_React$Component) {
 
       if (!me.$initialized) {
         if (typeof initialize === 'function') {
-          // We have to defer executing the function because setting state
-          // is prohibited during rendering cycle.
-          me.defer(function () {
-            initialize.apply(void 0, arguments);
+          var initializeWrapper = me.$initializeWrapper || (me.$initializeWrapper = function () {
+            // Initializer function is possibly making changes to the
+            // parent ViewModel state, which might cause extra rendering
+            // of this ViewController. To avoid extraneous invocations
+            // of the initializer function, clear the flags before invoking it.
             me.$initialized = true;
-          }, vc);
+            delete me.$initializeWrapper;
+            initialize.apply(void 0, arguments);
+          }); // We have to defer executing the function because setting state
+          // is prohibited during rendering cycle.
+
+
+          me.defer(initializeWrapper, vc, true);
         } else {
           me.$initialized = true;
         }

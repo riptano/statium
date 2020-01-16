@@ -476,12 +476,21 @@ class ViewController extends React.Component {
         
         if (!me.$initialized) {
             if (typeof initialize === 'function') {
+                const initializeWrapper = me.$initializeWrapper ||
+                    (me.$initializeWrapper = (...args) => {
+                        // Initializer function is possibly making changes to the
+                        // parent ViewModel state, which might cause extra rendering
+                        // of this ViewController. To avoid extraneous invocations
+                        // of the initializer function, clear the flags before invoking it.
+                        me.$initialized = true;
+                        delete me.$initializeWrapper;
+                        
+                        initialize(...args);
+                    });
+                
                 // We have to defer executing the function because setting state
                 // is prohibited during rendering cycle.
-                me.defer((...args) => {
-                    initialize(...args);
-                    me.$initialized = true;
-                }, vc);
+                me.defer(initializeWrapper, vc, true);
             }
             else {
                 me.$initialized = true;
@@ -502,7 +511,7 @@ class ViewController extends React.Component {
         const { id, $viewModel, handlers, children } = me.props;
         
         const innerVC = ({ vm }) => 
-            React.createElement(ViewControllerContext.Consumer, {__self: this, __source: {fileName: _jsxFileName, lineNumber: 114}}
+            React.createElement(ViewControllerContext.Consumer, {__self: this, __source: {fileName: _jsxFileName, lineNumber: 123}}
                 ,  parent => {
                     const vc = accessorizeViewController(vm, {
                         id: id || me.id,
@@ -526,7 +535,7 @@ class ViewController extends React.Component {
                     me.runRenderHandlers(vc, me.props);
                     
                     return (
-                        React.createElement(ViewControllerContext.Provider, { value: vc, __self: this, __source: {fileName: _jsxFileName, lineNumber: 138}}
+                        React.createElement(ViewControllerContext.Provider, { value: vc, __self: this, __source: {fileName: _jsxFileName, lineNumber: 147}}
                             ,  children 
                         )
                     );
@@ -535,7 +544,7 @@ class ViewController extends React.Component {
     
         return $viewModel
             ? innerVC({ vm: $viewModel })
-            : React.createElement(ViewModelContext.Consumer, {__self: this, __source: {fileName: _jsxFileName, lineNumber: 147}}
+            : React.createElement(ViewModelContext.Consumer, {__self: this, __source: {fileName: _jsxFileName, lineNumber: 156}}
                 ,  innerVC 
               );
     }

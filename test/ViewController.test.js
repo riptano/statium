@@ -54,6 +54,21 @@ describe("ViewController", () => {
             
             expect(counter).toBe(1);
         });
+        
+        test("it should run initialize only once when ViewController is re-rendered before running initialize", async () => {
+            let counter = 0;
+            
+            const tree = mount(
+                <ViewController initialize={() => counter++} />
+            );
+            
+            tree.mount();
+            tree.mount();
+            
+            await sleep();
+            
+            expect(counter).toBe(1);
+        });
     });
     
     describe("invalidate", () => {

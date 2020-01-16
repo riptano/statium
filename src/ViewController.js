@@ -85,12 +85,21 @@ export class ViewController extends React.Component {
         
         if (!me.$initialized) {
             if (typeof initialize === 'function') {
+                const initializeWrapper = me.$initializeWrapper ||
+                    (me.$initializeWrapper = (...args) => {
+                        // Initializer function is possibly making changes to the
+                        // parent ViewModel state, which might cause extra rendering
+                        // of this ViewController. To avoid extraneous invocations
+                        // of the initializer function, clear the flags before invoking it.
+                        me.$initialized = true;
+                        delete me.$initializeWrapper;
+                        
+                        initialize(...args);
+                    });
+                
                 // We have to defer executing the function because setting state
                 // is prohibited during rendering cycle.
-                me.defer((...args) => {
-                    initialize(...args);
-                    me.$initialized = true;
-                }, vc);
+                me.defer(initializeWrapper, vc, true);
             }
             else {
                 me.$initialized = true;
