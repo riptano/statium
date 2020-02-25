@@ -789,8 +789,41 @@ var accessorizeViewModel = function accessorizeViewModel(vm) {
   vm.$dispatch = vm.$dispatch || vm.parent.$dispatch;
   return vm;
 };
-var validateInitialState = function validateInitialState(state) {
+var validateInitialState = function validateInitialState(state, vm) {
   if (state && _typeof(state) === 'object' && !Array.isArray(state)) {
+    var _iteratorNormalCompletion3 = true;
+    var _didIteratorError3 = false;
+    var _iteratorError3 = undefined;
+
+    try {
+      for (var _iterator3 = getKeys(state)[Symbol.iterator](), _step3; !(_iteratorNormalCompletion3 = (_step3 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
+        var key = _step3.value;
+
+        if (key in vm.parent.state) {
+          var _getStateKeyOwner5 = getStateKeyOwner(vm, key),
+              _getStateKeyOwner6 = _slicedToArray(_getStateKeyOwner5, 1),
+              owner = _getStateKeyOwner6[0];
+
+          if (owner) {
+            console.warn("initialState for ViewModel \"".concat(vm.id, "\" contains key \"").concat(key, "\" ") + "that overrides another key with similar name provided by " + "parent ViewModel \"".concat(owner.id, "\"."));
+          }
+        }
+      }
+    } catch (err) {
+      _didIteratorError3 = true;
+      _iteratorError3 = err;
+    } finally {
+      try {
+        if (!_iteratorNormalCompletion3 && _iterator3["return"] != null) {
+          _iterator3["return"]();
+        }
+      } finally {
+        if (_didIteratorError3) {
+          throw _iteratorError3;
+        }
+      }
+    }
+
     return true;
   }
 
@@ -1100,7 +1133,7 @@ function (_React$Component) {
     }
 
     if (process.env.NODE_ENV !== 'production') {
-      validateInitialState(initialState);
+      validateInitialState(initialState, vm);
     }
 
     _this.state = _objectSpread2({}, initialState);

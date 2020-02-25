@@ -80,7 +80,7 @@ class ViewModelState extends React.Component {
         }
         
         if (process.env.NODE_ENV !== 'production') {
-            validateInitialState(initialState);
+            validateInitialState(initialState, vm);
         }
         
         this.state = {...initialState};

@@ -136,8 +136,22 @@ export const accessorizeViewModel = vm => {
     return vm;
 };
 
-export const validateInitialState = state => {
+export const validateInitialState = (state, vm) => {
     if (state && typeof state === 'object' && !Array.isArray(state)) {
+        for (const key of getKeys(state)) {
+            if (key in vm.parent.state) {
+                const [owner] = getStateKeyOwner(vm, key);
+                
+                if (owner) {
+                    console.warn(
+                        `initialState for ViewModel "${vm.id}" contains key "${key}" ` +
+                        `that overrides another key with similar name provided by ` +
+                        `parent ViewModel "${owner.id}".`
+                    );
+                }
+            }
+        }
+        
         return true;
     }
     
