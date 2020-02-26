@@ -11,7 +11,6 @@ var loSet = _interopDefault(require('lodash.set'));
 var loHas = _interopDefault(require('lodash.has'));
 var loClone = _interopDefault(require('lodash.clone'));
 var upperFirst = _interopDefault(require('lodash.upperfirst'));
-var _defer = _interopDefault(require('lodash.defer'));
 
 function _typeof(obj) {
   if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") {
@@ -479,6 +478,10 @@ var normalizeProtectedKeys = function normalizeProtectedKeys(keys) {
 
   return validatedKeys;
 };
+var defer = function defer(fn) {
+  var timeout = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
+  return setTimeout(fn, timeout);
+};
 
 var normalizeBindings = function normalizeBindings() {
   var bindings = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {};
@@ -855,9 +858,9 @@ var dispatcher = function dispatcher(vc, event, payload) {
   var handler = owner && owner.handlers[event];
 
   if (typeof handler === 'function') {
-    vc.defer.apply(vc, [handler, vc, true].concat(_toConsumableArray(payload)));
+    return vc.defer.apply(vc, [handler, vc].concat(_toConsumableArray(payload)));
   } else {
-    rootViewController.$dispatch.apply(rootViewController, [event].concat(_toConsumableArray(payload)));
+    return rootViewController.$dispatch.apply(rootViewController, [event].concat(_toConsumableArray(payload)));
   }
 };
 
@@ -943,28 +946,30 @@ function (_React$Component) {
     }
   }, {
     key: "defer",
-    value: function defer(fn, vc) {
-      var cancel = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : false;
-
-      for (var _len4 = arguments.length, args = new Array(_len4 > 3 ? _len4 - 3 : 0), _key4 = 3; _key4 < _len4; _key4++) {
-        args[_key4 - 3] = arguments[_key4];
+    value: function defer$1(fn, vc) {
+      for (var _len4 = arguments.length, args = new Array(_len4 > 2 ? _len4 - 2 : 0), _key4 = 2; _key4 < _len4; _key4++) {
+        args[_key4 - 2] = arguments[_key4];
       }
 
       var timer = this.timerMap.get(fn);
 
       if (timer) {
-        if (cancel) {
-          clearTimeout(timer);
-          this.timerMap["delete"](fn);
-        } else {
-          console.warn('Double executing handler function: ', fn.toString());
-        }
+        clearTimeout(timer);
+        this.timerMap["delete"](fn);
       }
 
-      timer = _defer(function () {
-        fn.apply(void 0, [expose(vc)].concat(args));
+      var promise = new Promise(function (resolve, reject) {
+        timer = defer(function () {
+          try {
+            var result = fn.apply(void 0, [expose(vc)].concat(args));
+            resolve(result);
+          } catch (e) {
+            reject(e);
+          }
+        });
       });
       this.timerMap.set(fn, timer);
+      return promise;
     }
   }, {
     key: "runRenderHandlers",
@@ -987,7 +992,7 @@ function (_React$Component) {
           // is prohibited during rendering cycle.
 
 
-          me.defer(initializeWrapper, vc, true);
+          me.defer(initializeWrapper, vc);
         } else {
           me.$initialized = true;
         }
@@ -995,7 +1000,7 @@ function (_React$Component) {
         // Same as `initialize`, we need to run `invalidate`
         // out of event loop.
         if (typeof invalidate === 'function') {
-          me.defer(invalidate, vc, true); // Cancel previous invocation
+          me.defer(invalidate, vc);
         }
       }
     }

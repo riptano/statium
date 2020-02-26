@@ -4,7 +4,6 @@ import loSet from 'lodash.set';
 import loHas from 'lodash.has';
 import loClone from 'lodash.clone';
 import upperFirst from 'lodash.upperfirst';
-import defer from 'lodash.defer';
 
 const error = msg => {
     if (process.env.NODE_ENV === 'production') {
@@ -189,6 +188,8 @@ const normalizeProtectedKeys = keys => {
     
     return validatedKeys;
 };
+
+const defer = (fn, timeout = 0) => setTimeout(fn, timeout);
 
 const normalizeBindings = (bindings = {}) => {
     if (!bindings || !(typeof bindings === 'object' || validKey(bindings))) {
@@ -462,10 +463,10 @@ const dispatcher = (vc, event, payload) => {
     const handler = owner && owner.handlers[event];
     
     if (typeof handler === 'function') {
-        vc.defer(handler, vc, true, ...payload);
+        return vc.defer(handler, vc, ...payload);
     }
     else {
-        rootViewController.$dispatch(event, ...payload);
+        return rootViewController.$dispatch(event, ...payload);
     }
 };
 
@@ -504,24 +505,30 @@ class ViewController extends React.Component {
         this.timerMap.clear();
     }
     
-    defer(fn, vc, cancel = false, ...args) {
+    defer(fn, vc, ...args) {
         let timer = this.timerMap.get(fn);
         
         if (timer) {
-            if (cancel) {
-                clearTimeout(timer);
-                this.timerMap.delete(fn);
-            }
-            else {
-                console.warn('Double executing handler function: ', fn.toString());
-            }
+            clearTimeout(timer);
+            this.timerMap.delete(fn);
         }
         
-        timer = defer(() => {
-            fn(expose(vc), ...args);
+        const promise = new Promise((resolve, reject) => {
+            timer = defer(() => {
+                try {
+                    const result = fn(expose(vc), ...args);
+                    
+                    resolve(result);
+                }
+                catch (e) {
+                    reject(e);
+                }
+            });
         });
         
         this.timerMap.set(fn, timer);
+        
+        return promise;
     }
     
     runRenderHandlers(vc, props) {
@@ -545,7 +552,7 @@ class ViewController extends React.Component {
                 
                 // We have to defer executing the function because setting state
                 // is prohibited during rendering cycle.
-                me.defer(initializeWrapper, vc, true);
+                me.defer(initializeWrapper, vc);
             }
             else {
                 me.$initialized = true;
@@ -555,7 +562,7 @@ class ViewController extends React.Component {
             // Same as `initialize`, we need to run `invalidate`
             // out of event loop.
             if (typeof invalidate === 'function') {
-                me.defer(invalidate, vc, true); // Cancel previous invocation
+                me.defer(invalidate, vc);
             }
         }
     }
@@ -566,7 +573,7 @@ class ViewController extends React.Component {
         const { id, $viewModel, handlers, children } = me.props;
         
         const innerVC = ({ vm }) => 
-            React.createElement(ViewControllerContext.Consumer, {__self: this, __source: {fileName: _jsxFileName, lineNumber: 123}}
+            React.createElement(ViewControllerContext.Consumer, {__self: this, __source: {fileName: _jsxFileName, lineNumber: 128}}
                 ,  parent => {
                     const vc = accessorizeViewController(vm, {
                         id: id || me.id,
@@ -590,7 +597,7 @@ class ViewController extends React.Component {
                     me.runRenderHandlers(vc, me.props);
                     
                     return (
-                        React.createElement(ViewControllerContext.Provider, { value: vc, __self: this, __source: {fileName: _jsxFileName, lineNumber: 147}}
+                        React.createElement(ViewControllerContext.Provider, { value: vc, __self: this, __source: {fileName: _jsxFileName, lineNumber: 152}}
                             ,  children 
                         )
                     );
@@ -599,7 +606,7 @@ class ViewController extends React.Component {
     
         return $viewModel
             ? innerVC({ vm: $viewModel })
-            : React.createElement(ViewModelContext.Consumer, {__self: this, __source: {fileName: _jsxFileName, lineNumber: 156}}
+            : React.createElement(ViewModelContext.Consumer, {__self: this, __source: {fileName: _jsxFileName, lineNumber: 161}}
                 ,  innerVC 
               );
     }

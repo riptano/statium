@@ -1,9 +1,8 @@
 import React from 'react';
-import defer from 'lodash.defer';
 
 import { ViewModelContext, ViewControllerContext, rootViewController } from './context';
 import { multiGet, multiSet, accessorType } from './accessors';
-import { getId, findOwner } from './util';
+import { getId, findOwner, defer as doDefer } from './util';
 
 export const expose = ({ $get, $set, $dispatch }) => ({
     $get,
@@ -16,10 +15,10 @@ export const dispatcher = (vc, event, payload) => {
     const handler = owner && owner.handlers[event];
     
     if (typeof handler === 'function') {
-        vc.defer(handler, vc, true, ...payload);
+        return vc.defer(handler, vc, ...payload);
     }
     else {
-        rootViewController.$dispatch(event, ...payload);
+        return rootViewController.$dispatch(event, ...payload);
     }
 };
 
@@ -58,24 +57,30 @@ export class ViewController extends React.Component {
         this.timerMap.clear();
     }
     
-    defer(fn, vc, cancel = false, ...args) {
+    defer(fn, vc, ...args) {
         let timer = this.timerMap.get(fn);
         
         if (timer) {
-            if (cancel) {
-                clearTimeout(timer);
-                this.timerMap.delete(fn);
-            }
-            else {
-                console.warn('Double executing handler function: ', fn.toString());
-            }
+            clearTimeout(timer);
+            this.timerMap.delete(fn);
         }
         
-        timer = defer(() => {
-            fn(expose(vc), ...args);
+        const promise = new Promise((resolve, reject) => {
+            timer = doDefer(() => {
+                try {
+                    const result = fn(expose(vc), ...args);
+                    
+                    resolve(result);
+                }
+                catch (e) {
+                    reject(e);
+                }
+            });
         });
         
         this.timerMap.set(fn, timer);
+        
+        return promise;
     }
     
     runRenderHandlers(vc, props) {
@@ -99,7 +104,7 @@ export class ViewController extends React.Component {
                 
                 // We have to defer executing the function because setting state
                 // is prohibited during rendering cycle.
-                me.defer(initializeWrapper, vc, true);
+                me.defer(initializeWrapper, vc);
             }
             else {
                 me.$initialized = true;
@@ -109,7 +114,7 @@ export class ViewController extends React.Component {
             // Same as `initialize`, we need to run `invalidate`
             // out of event loop.
             if (typeof invalidate === 'function') {
-                me.defer(invalidate, vc, true); // Cancel previous invocation
+                me.defer(invalidate, vc);
             }
         }
     }

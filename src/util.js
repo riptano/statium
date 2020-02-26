@@ -101,3 +101,5 @@ export const normalizeProtectedKeys = keys => {
     
     return validatedKeys;
 };
+
+export const defer = (fn, timeout = 0) => setTimeout(fn, timeout);

@@ -576,5 +576,55 @@ describe("ViewController", () => {
             expect(dispatch === parentDispatch).toBe(false);
             expect(value).toBe('kaputz');
         });
+        
+        test("event handler should return a Promise that is eventually resolved", async () => {
+            mount(
+                <ViewController handlers={{
+                        gruddle: async (vc, arg) => {
+                            await sleep(0);
+                            
+                            return { [arg]: true };
+                        },
+                    }}>
+                    
+                    <Component />
+                </ViewController>
+            );
+            
+            const promise = dispatch('gruddle', 'mundu');
+            
+            expect(promise instanceof Promise).toBe(true);
+            
+            const result = await promise;
+            
+            expect(result).toEqual({ mundu: true });
+        });
+        
+        // eslint-disable-next-line jest/no-test-callback
+        test("Promise returned by event handler should be rejected if handler throws an exception", done => {
+            mount(
+                <ViewController handlers={{
+                        gangr: async (vc, arg) => {
+                            await sleep(0);
+                            
+                            throw new Error(arg);
+                        },
+                    }}>
+                    
+                    <Component />
+                </ViewController>
+            );
+            
+            const promise = dispatch('gangr', 'bzuurg!');
+            
+            promise
+                .then(() => { done.fail('Handler did not throw exception'); })
+                .catch(e => {
+                    expect(e.message).toBe('bzuurg!');
+                    
+                    // eslint-disable-next-line promise/no-callback-in-promise
+                    done();
+                });
+        });
     });
 });
