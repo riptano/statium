@@ -645,9 +645,9 @@ var setter = function setter(vm, key, value) {
 
   if (owner.protectedKeys && key in owner.protectedKeys) {
     var event = owner.protectedKeys[key];
-    owner.$dispatch(event, value);
+    return owner.$dispatch(event, value);
   } else {
-    owner.setState(_defineProperty({}, key, value));
+    return owner.setState(_defineProperty({}, key, value));
   }
 };
 
@@ -671,7 +671,9 @@ var multiGet = function multiGet(vm, keys) {
   var bindings = normalizeBindings(keys);
   return objectSyntax ? mapProps(vm, bindings) : mapPropsToArray(vm, bindings);
 };
-var multiSet = function multiSet(vm, key, value) {
+var multiSet = function multiSet(_ref, key, value) {
+  var vm = _ref.vm,
+      forceKey = _ref.forceKey;
   var kv;
 
   if (key && _typeof(key) === 'object' && !Array.isArray(key)) {
@@ -704,12 +706,17 @@ var multiSet = function multiSet(vm, key, value) {
         o = {
           owner: owner,
           depth: depth,
-          values: {}
+          values: {},
+          protectedValues: {}
         };
         ownerMap.set(owner, o);
       }
 
-      o.values[k] = kv[k];
+      if (owner.protectedKeys && k in owner.protectedKeys && k !== forceKey) {
+        o.protectedValues[k] = kv[k];
+      } else {
+        o.values[k] = kv[k];
+      }
     }
   } catch (err) {
     _didIteratorError = true;
@@ -737,6 +744,7 @@ var multiSet = function multiSet(vm, key, value) {
     return a.depth < b.depth ? 1 : -1;
   });
 
+  var promises = [];
   var _iteratorNormalCompletion2 = true;
   var _didIteratorError2 = false;
   var _iteratorError2 = undefined;
@@ -745,9 +753,35 @@ var multiSet = function multiSet(vm, key, value) {
     for (var _iterator2 = sortedQueue[Symbol.iterator](), _step2; !(_iteratorNormalCompletion2 = (_step2 = _iterator2.next()).done); _iteratorNormalCompletion2 = true) {
       var item = _step2.value;
       var _owner = item.owner,
-          values = item.values;
+          values = item.values,
+          protectedValues = item.protectedValues;
+      var _iteratorNormalCompletion3 = true;
+      var _didIteratorError3 = false;
+      var _iteratorError3 = undefined;
 
-      _owner.setState(values);
+      try {
+        for (var _iterator3 = getKeys(protectedValues)[Symbol.iterator](), _step3; !(_iteratorNormalCompletion3 = (_step3 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
+          var protectedKey = _step3.value;
+          var protectedValue = protectedValues[protectedKey];
+          var event = _owner.protectedKeys[protectedKey];
+          promises.push(_owner.$protectedDispatch(protectedKey, event, protectedValue));
+        }
+      } catch (err) {
+        _didIteratorError3 = true;
+        _iteratorError3 = err;
+      } finally {
+        try {
+          if (!_iteratorNormalCompletion3 && _iterator3["return"] != null) {
+            _iterator3["return"]();
+          }
+        } finally {
+          if (_didIteratorError3) {
+            throw _iteratorError3;
+          }
+        }
+      }
+
+      promises.push(_owner.setState(values));
     }
   } catch (err) {
     _didIteratorError2 = true;
@@ -763,6 +797,8 @@ var multiSet = function multiSet(vm, key, value) {
       }
     }
   }
+
+  return Promise.all(promises);
 };
 var accessorizeViewModel = function accessorizeViewModel(vm) {
   vm.$retrieve = function (key) {
@@ -797,17 +833,18 @@ var accessorizeViewModel = function accessorizeViewModel(vm) {
 
   vm.$set[accessorType] = 'set';
   vm.$dispatch = vm.$dispatch || vm.parent.$dispatch;
+  vm.$protectedDispatch = vm.$protectedDispatch || vm.parent.$protectedDispatch;
   return vm;
 };
 var validateInitialState = function validateInitialState(state, vm) {
   if (state && _typeof(state) === 'object' && !Array.isArray(state)) {
-    var _iteratorNormalCompletion3 = true;
-    var _didIteratorError3 = false;
-    var _iteratorError3 = undefined;
+    var _iteratorNormalCompletion4 = true;
+    var _didIteratorError4 = false;
+    var _iteratorError4 = undefined;
 
     try {
-      for (var _iterator3 = getKeys(state)[Symbol.iterator](), _step3; !(_iteratorNormalCompletion3 = (_step3 = _iterator3.next()).done); _iteratorNormalCompletion3 = true) {
-        var key = _step3.value;
+      for (var _iterator4 = getKeys(state)[Symbol.iterator](), _step4; !(_iteratorNormalCompletion4 = (_step4 = _iterator4.next()).done); _iteratorNormalCompletion4 = true) {
+        var key = _step4.value;
 
         if (key in vm.parent.state) {
           var _getStateKeyOwner5 = getStateKeyOwner(vm, key),
@@ -820,16 +857,16 @@ var validateInitialState = function validateInitialState(state, vm) {
         }
       }
     } catch (err) {
-      _didIteratorError3 = true;
-      _iteratorError3 = err;
+      _didIteratorError4 = true;
+      _iteratorError4 = err;
     } finally {
       try {
-        if (!_iteratorNormalCompletion3 && _iterator3["return"] != null) {
-          _iterator3["return"]();
+        if (!_iteratorNormalCompletion4 && _iterator4["return"] != null) {
+          _iterator4["return"]();
         }
       } finally {
-        if (_didIteratorError3) {
-          throw _iteratorError3;
+        if (_didIteratorError4) {
+          throw _iteratorError4;
         }
       }
     }
@@ -839,6 +876,8 @@ var validateInitialState = function validateInitialState(state, vm) {
 
   throw new Error("Invalid initialState: ".concat(JSON.stringify(state)));
 };
+
+// ViewController context object.
 
 var expose = function expose(_ref) {
   var $get = _ref.$get,
@@ -850,7 +889,13 @@ var expose = function expose(_ref) {
     $dispatch: $dispatch
   };
 };
-var dispatcher = function dispatcher(vc, event, payload) {
+
+var dispatcher = function dispatcher(_ref2) {
+  var vc = _ref2.vc,
+      protectedKey = _ref2.protectedKey,
+      event = _ref2.event,
+      payload = _ref2.payload;
+
   var _findOwner = findOwner(vc, 'handlers', event),
       _findOwner2 = _slicedToArray(_findOwner, 1),
       owner = _findOwner2[0];
@@ -858,7 +903,29 @@ var dispatcher = function dispatcher(vc, event, payload) {
   var handler = owner && owner.handlers[event];
 
   if (typeof handler === 'function') {
-    return vc.defer.apply(vc, [handler, vc].concat(_toConsumableArray(payload)));
+    var _vc2;
+
+    // If the event is a protected key event, we need to massage the setter function
+    // passed into the handler, so that trying to $set(protectedKey, value) from
+    // within that handler wouldn't dispatch another event.
+    // In other words, within a protected key event handler, it is possible to set
+    // *only* that key directly, while any other keys are going to to through
+    // the usual routine.
+    if (protectedKey) {
+      vc = _objectSpread2({}, vc, {
+        $set: function $set() {
+          var _vc;
+
+          for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
+            args[_key] = arguments[_key];
+          }
+
+          return (_vc = vc).$protectedSet.apply(_vc, [protectedKey].concat(args));
+        }
+      });
+    }
+
+    return (_vc2 = vc).defer.apply(_vc2, [handler, vc].concat(_toConsumableArray(payload)));
   } else {
     return rootViewController.$dispatch.apply(rootViewController, [event].concat(_toConsumableArray(payload)));
   }
@@ -866,8 +933,8 @@ var dispatcher = function dispatcher(vc, event, payload) {
 
 var accessorizeViewController = function accessorizeViewController(vm, vc) {
   vc.$get = function () {
-    for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
-      args[_key] = arguments[_key];
+    for (var _len2 = arguments.length, args = new Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
+      args[_key2] = arguments[_key2];
     }
 
     return multiGet(vm, args);
@@ -876,24 +943,58 @@ var accessorizeViewController = function accessorizeViewController(vm, vc) {
   vc.$get[accessorType] = 'get';
 
   vc.$set = function () {
-    for (var _len2 = arguments.length, args = new Array(_len2), _key2 = 0; _key2 < _len2; _key2++) {
-      args[_key2] = arguments[_key2];
+    for (var _len3 = arguments.length, args = new Array(_len3), _key3 = 0; _key3 < _len3; _key3++) {
+      args[_key3] = arguments[_key3];
     }
 
-    return multiSet.apply(void 0, [vm].concat(args));
+    return multiSet.apply(void 0, [{
+      vm: vm
+    }].concat(args));
   };
 
   vc.$set[accessorType] = 'set';
 
-  vc.$dispatch = function (event) {
-    for (var _len3 = arguments.length, payload = new Array(_len3 > 1 ? _len3 - 1 : 0), _key3 = 1; _key3 < _len3; _key3++) {
-      payload[_key3 - 1] = arguments[_key3];
+  vc.$protectedSet = function (forceKey) {
+    for (var _len4 = arguments.length, args = new Array(_len4 > 1 ? _len4 - 1 : 0), _key4 = 1; _key4 < _len4; _key4++) {
+      args[_key4 - 1] = arguments[_key4];
     }
 
-    return dispatcher(vc, event, payload);
+    return multiSet.apply(void 0, [{
+      vm: vm,
+      forceKey: forceKey
+    }].concat(args));
+  };
+
+  vc.$protectedSet[accessorType] = 'set';
+
+  vc.$dispatch = function (event) {
+    for (var _len5 = arguments.length, payload = new Array(_len5 > 1 ? _len5 - 1 : 0), _key5 = 1; _key5 < _len5; _key5++) {
+      payload[_key5 - 1] = arguments[_key5];
+    }
+
+    return dispatcher({
+      vc: vc,
+      event: event,
+      payload: payload
+    });
   };
 
   vc.$dispatch[accessorType] = 'dispatch';
+
+  vc.$protectedDispatch = function (protectedKey, event) {
+    for (var _len6 = arguments.length, payload = new Array(_len6 > 2 ? _len6 - 2 : 0), _key6 = 2; _key6 < _len6; _key6++) {
+      payload[_key6 - 2] = arguments[_key6];
+    }
+
+    return dispatcher({
+      vc: vc,
+      protectedKey: protectedKey,
+      event: event,
+      payload: payload
+    });
+  };
+
+  vc.$protectedDispatch[accessorType] = 'dispatch';
   return vc;
 };
 
@@ -947,8 +1048,8 @@ function (_React$Component) {
   }, {
     key: "defer",
     value: function defer$1(fn, vc) {
-      for (var _len4 = arguments.length, args = new Array(_len4 > 2 ? _len4 - 2 : 0), _key4 = 2; _key4 < _len4; _key4++) {
-        args[_key4 - 2] = arguments[_key4];
+      for (var _len7 = arguments.length, args = new Array(_len7 > 2 ? _len7 - 2 : 0), _key7 = 2; _key7 < _len7; _key7++) {
+        args[_key7 - 2] = arguments[_key7];
       }
 
       var timer = this.timerMap.get(fn);
@@ -1014,8 +1115,8 @@ function (_React$Component) {
           handlers = _me$props.handlers,
           children = _me$props.children;
 
-      var innerVC = function innerVC(_ref2) {
-        var vm = _ref2.vm;
+      var innerVC = function innerVC(_ref3) {
+        var vm = _ref3.vm;
         return React__default.createElement(ViewControllerContext.Consumer, null, function (parent) {
           var vc = accessorizeViewController(vm, {
             id: id || me.id,
@@ -1025,7 +1126,8 @@ function (_React$Component) {
           }); // ViewModel needs dispatcher reference to fire events
           // for corresponding protected keys.
 
-          vm.$dispatch = vc.$dispatch; // We *need* to run initialize and invalidate handlers during rendering,
+          vm.$dispatch = vc.$dispatch;
+          vm.$protectedDispatch = vc.$protectedDispatch; // We *need* to run initialize and invalidate handlers during rendering,
           // as opposed to a lifecycle method such as `componentDidMount`.
           // The purpose of these functions is to do something that might affect
           // parent ViewModel state, and we need to have the `vm` ViewModel
@@ -1302,11 +1404,7 @@ var useBindings = function useBindings() {
 
 var useController = function useController() {
   var vc = React.useContext(ViewControllerContext);
-  return {
-    $get: vc.$get,
-    $set: vc.$set,
-    $dispatch: vc.$dispatch
-  };
+  return expose(vc);
 };
 
 exports.Bind = Bind;

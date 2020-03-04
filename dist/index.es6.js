@@ -326,10 +326,10 @@ const setter = (vm, key, value) => {
     if (owner.protectedKeys && key in owner.protectedKeys) {
         const event = owner.protectedKeys[key];
         
-        owner.$dispatch(event, value);
+        return owner.$dispatch(event, value);
     }
     else {
-        owner.setState({ [key]: value });
+        return owner.setState({ [key]: value });
     }
 };
 
@@ -356,7 +356,7 @@ const multiGet = (vm, keys) => {
     return objectSyntax ? mapProps(vm, bindings) : mapPropsToArray(vm, bindings);
 };
 
-const multiSet = (vm, key, value) => {
+const multiSet = ({ vm, forceKey }, key, value) => {
     let kv;
     
     if (key && typeof key === 'object' && !Array.isArray(key)) {
@@ -385,12 +385,18 @@ const multiSet = (vm, key, value) => {
                 owner,
                 depth,
                 values: {},
+                protectedValues: {},
             };
             
             ownerMap.set(owner, o);
         }
         
-        o.values[k] = kv[k];
+        if (owner.protectedKeys && k in owner.protectedKeys && k !== forceKey) {
+            o.protectedValues[k] = kv[k];
+        }
+        else {
+            o.values[k] = kv[k];
+        }
     }
     
     const sortedQueue = [...ownerMap.values()].sort((a, b) => {
@@ -404,11 +410,22 @@ const multiSet = (vm, key, value) => {
         return a.depth < b.depth ? 1 : -1;
     });
     
+    const promises = [];
+    
     for (const item of sortedQueue) {
-        const { owner, values } = item;
+        const { owner, values, protectedValues } = item;
         
-        owner.setState(values);
+        for (const protectedKey of getKeys(protectedValues)) {
+            const protectedValue = protectedValues[protectedKey];
+            const event = owner.protectedKeys[protectedKey];
+            
+            promises.push(owner.$protectedDispatch(protectedKey, event, protectedValue));
+        }
+        
+        promises.push(owner.setState(values));
     }
+    
+    return Promise.all(promises);
 };
 
 const accessorizeViewModel = vm => {
@@ -425,6 +442,7 @@ const accessorizeViewModel = vm => {
     vm.$set[accessorType] = 'set';
     
     vm.$dispatch = vm.$dispatch || vm.parent.$dispatch;
+    vm.$protectedDispatch = vm.$protectedDispatch || vm.parent.$protectedDispatch;
     
     return vm;
 };
@@ -452,17 +470,32 @@ const validateInitialState = (state, vm) => {
 };
 
 const _jsxFileName = "/Users/nohuhu/dev/statium/src/ViewController.js";
+// The purpose of this function is to expose an API while decoupling from the actual
+// ViewController context object.
 const expose = ({ $get, $set, $dispatch }) => ({
     $get,
     $set,
     $dispatch,
 });
 
-const dispatcher = (vc, event, payload) => {
+const dispatcher = ({ vc, protectedKey, event, payload }) => {
     const [owner] = findOwner(vc, 'handlers', event);
     const handler = owner && owner.handlers[event];
     
     if (typeof handler === 'function') {
+        // If the event is a protected key event, we need to massage the setter function
+        // passed into the handler, so that trying to $set(protectedKey, value) from
+        // within that handler wouldn't dispatch another event.
+        // In other words, within a protected key event handler, it is possible to set
+        // *only* that key directly, while any other keys are going to to through
+        // the usual routine.
+        if (protectedKey) {
+            vc = {
+                ...vc,
+                $set: (...args) => vc.$protectedSet(protectedKey, ...args),
+            };
+        }
+        
         return vc.defer(handler, vc, ...payload);
     }
     else {
@@ -474,11 +507,19 @@ const accessorizeViewController = (vm, vc) => {
     vc.$get = (...args) => multiGet(vm, args);
     vc.$get[accessorType] = 'get';
     
-    vc.$set = (...args) => multiSet(vm, ...args);
+    vc.$set = (...args) => multiSet({ vm }, ...args);
     vc.$set[accessorType] = 'set';
     
-    vc.$dispatch = (event, ...payload) => dispatcher(vc, event, payload);
+    vc.$protectedSet = (forceKey, ...args) => multiSet({ vm, forceKey }, ...args);
+    vc.$protectedSet[accessorType] = 'set';
+    
+    vc.$dispatch = (event, ...payload) => dispatcher({ vc, event, payload });
     vc.$dispatch[accessorType] = 'dispatch';
+    
+    vc.$protectedDispatch = (protectedKey, event, ...payload) =>
+        dispatcher({ vc, protectedKey, event, payload });
+    
+    vc.$protectedDispatch[accessorType] = 'dispatch';
     
     return vc;
 };
@@ -573,7 +614,7 @@ class ViewController extends React.Component {
         const { id, $viewModel, handlers, children } = me.props;
         
         const innerVC = ({ vm }) => 
-            React.createElement(ViewControllerContext.Consumer, {__self: this, __source: {fileName: _jsxFileName, lineNumber: 128}}
+            React.createElement(ViewControllerContext.Consumer, {__self: this, __source: {fileName: _jsxFileName, lineNumber: 151}}
                 ,  parent => {
                     const vc = accessorizeViewController(vm, {
                         id: id || me.id,
@@ -585,6 +626,7 @@ class ViewController extends React.Component {
                     // ViewModel needs dispatcher reference to fire events
                     // for corresponding protected keys.
                     vm.$dispatch = vc.$dispatch;
+                    vm.$protectedDispatch = vc.$protectedDispatch;
                     
                     // We *need* to run initialize and invalidate handlers during rendering,
                     // as opposed to a lifecycle method such as `componentDidMount`.
@@ -597,7 +639,7 @@ class ViewController extends React.Component {
                     me.runRenderHandlers(vc, me.props);
                     
                     return (
-                        React.createElement(ViewControllerContext.Provider, { value: vc, __self: this, __source: {fileName: _jsxFileName, lineNumber: 152}}
+                        React.createElement(ViewControllerContext.Provider, { value: vc, __self: this, __source: {fileName: _jsxFileName, lineNumber: 176}}
                             ,  children 
                         )
                     );
@@ -606,7 +648,7 @@ class ViewController extends React.Component {
     
         return $viewModel
             ? innerVC({ vm: $viewModel })
-            : React.createElement(ViewModelContext.Consumer, {__self: this, __source: {fileName: _jsxFileName, lineNumber: 161}}
+            : React.createElement(ViewModelContext.Consumer, {__self: this, __source: {fileName: _jsxFileName, lineNumber: 185}}
                 ,  innerVC 
               );
     }
@@ -838,7 +880,7 @@ const useBindings = (..._bindings) => {
 const useController = () => {
     const vc = useContext(ViewControllerContext);
     
-    return { $get: vc.$get, $set: vc.$set, $dispatch: vc.$dispatch };
+    return expose(vc);
 };
 
 export default ViewModel;

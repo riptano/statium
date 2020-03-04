@@ -4,17 +4,32 @@ import { ViewModelContext, ViewControllerContext, rootViewController } from './c
 import { multiGet, multiSet, accessorType } from './accessors';
 import { getId, findOwner, defer as doDefer } from './util';
 
+// The purpose of this function is to expose an API while decoupling from the actual
+// ViewController context object.
 export const expose = ({ $get, $set, $dispatch }) => ({
     $get,
     $set,
     $dispatch,
 });
 
-export const dispatcher = (vc, event, payload) => {
+const dispatcher = ({ vc, protectedKey, event, payload }) => {
     const [owner] = findOwner(vc, 'handlers', event);
     const handler = owner && owner.handlers[event];
     
     if (typeof handler === 'function') {
+        // If the event is a protected key event, we need to massage the setter function
+        // passed into the handler, so that trying to $set(protectedKey, value) from
+        // within that handler wouldn't dispatch another event.
+        // In other words, within a protected key event handler, it is possible to set
+        // *only* that key directly, while any other keys are going to to through
+        // the usual routine.
+        if (protectedKey) {
+            vc = {
+                ...vc,
+                $set: (...args) => vc.$protectedSet(protectedKey, ...args),
+            };
+        }
+        
         return vc.defer(handler, vc, ...payload);
     }
     else {
@@ -26,11 +41,19 @@ const accessorizeViewController = (vm, vc) => {
     vc.$get = (...args) => multiGet(vm, args);
     vc.$get[accessorType] = 'get';
     
-    vc.$set = (...args) => multiSet(vm, ...args);
+    vc.$set = (...args) => multiSet({ vm }, ...args);
     vc.$set[accessorType] = 'set';
     
-    vc.$dispatch = (event, ...payload) => dispatcher(vc, event, payload);
+    vc.$protectedSet = (forceKey, ...args) => multiSet({ vm, forceKey }, ...args);
+    vc.$protectedSet[accessorType] = 'set';
+    
+    vc.$dispatch = (event, ...payload) => dispatcher({ vc, event, payload });
     vc.$dispatch[accessorType] = 'dispatch';
+    
+    vc.$protectedDispatch = (protectedKey, event, ...payload) =>
+        dispatcher({ vc, protectedKey, event, payload });
+    
+    vc.$protectedDispatch[accessorType] = 'dispatch';
     
     return vc;
 };
@@ -137,6 +160,7 @@ export class ViewController extends React.Component {
                     // ViewModel needs dispatcher reference to fire events
                     // for corresponding protected keys.
                     vm.$dispatch = vc.$dispatch;
+                    vm.$protectedDispatch = vc.$protectedDispatch;
                     
                     // We *need* to run initialize and invalidate handlers during rendering,
                     // as opposed to a lifecycle method such as `componentDidMount`.

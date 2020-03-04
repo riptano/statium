@@ -358,13 +358,11 @@ describe("ViewController", () => {
             // Clear the array without changing reference
             have.length = 0;
             
-            setter({
+            await setter({
                 child: "hrum",
                 parent: "enok",
                 gramps: "aflo",
             });
-            
-            await sleep(10);
             
             // Setting and rendering goes from granparent to parent to child, respectively:
             // 
@@ -391,7 +389,6 @@ describe("ViewController", () => {
                 { child: 'argu' },
                 { child: 'hrum' },
             ]);
-//             expect(have).toEqual(['aflo', 'seap', 'argu', 'enok', 'argu', 'hrum']);
         });
         
         test("it should throw an exception if key owner is not found", () => {
@@ -413,6 +410,90 @@ describe("ViewController", () => {
                 setter('dhus', [1]);
             }).toThrow('Cannot find owner ViewModel for key dhus. You need to ' +
                        'provide initial value for this key in "initialState" prop.');
+        });
+        
+        test("it should dispatch correct event when setting value for a protected key", async () => {
+            let value, setter;
+            
+            const setKatin = jest.fn(({ $set }, v) => {
+                $set('katin', v);
+            });
+            
+            const tree = mount(
+                <ViewModel initialState={{ katin: "lau" }} protectedKeys="katin">
+                    <ViewController handlers={{ setKatin }}>
+                        <Bind props="katin" controller>
+                        { ({ katin }, { $set }) => {
+                            value = katin;
+                            setter = $set;
+                        }}
+                        </Bind>
+                    </ViewController>
+                </ViewModel>
+            );
+            
+            expect(value).toBe("lau");
+            
+            // Single-key invocation
+            await setter("katin", "xana");
+            
+            tree.mount();
+            await sleep();
+            
+            expect(setKatin.mock.calls).toHaveLength(1);
+            expect(value).toBe("xana");
+            
+            // Multi-key invocation
+            await setter({ katin: "koko" });
+            
+            tree.mount();
+            await sleep();
+            
+            expect(setKatin.mock.calls).toHaveLength(2);
+            expect(value).toBe("koko");
+        });
+        
+        test("protected key handler should be able to set its own key directly but not other keys", async () => {
+            let value, otherValue, setter;
+            
+            const setBurkle = jest.fn(({ $set }, v) => {
+                $set({
+                    burkle: v,
+                    aahz: true,
+                });
+            });
+            
+            const setAahz = jest.fn(({ $set }, v) => {
+                $set('aahz', 'value: ' + String(v));
+            });
+            
+            const tree = mount(
+                <ViewModel initialState={{ aahz: false, burkle: "juut" }}
+                    protectedKeys={["aahz", "burkle"]}>
+                    <ViewController handlers={{ setAahz, setBurkle }}>
+                        <Bind props={["aahz", "burkle"]} controller>
+                        { ({ aahz, burkle }, { $set }) => {
+                            value = burkle;
+                            otherValue = aahz;
+                            setter = $set;
+                        }}
+                        </Bind>
+                    </ViewController>
+                </ViewModel>
+            );
+            
+            expect(value).toBe("juut");
+            expect(otherValue).toBe(false);
+            
+            await setter("burkle", "feng");
+            
+            tree.mount();
+            await sleep();
+            
+            expect(setBurkle.mock.calls).toHaveLength(1);
+            expect(setAahz.mock.calls).toHaveLength(1);
+            expect(value).toBe("feng");
+            expect(otherValue).toBe("value: true");
         });
     });
     

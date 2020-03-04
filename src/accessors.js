@@ -33,10 +33,10 @@ const setter = (vm, key, value) => {
     if (owner.protectedKeys && key in owner.protectedKeys) {
         const event = owner.protectedKeys[key];
         
-        owner.$dispatch(event, value);
+        return owner.$dispatch(event, value);
     }
     else {
-        owner.setState({ [key]: value });
+        return owner.setState({ [key]: value });
     }
 };
 
@@ -63,7 +63,7 @@ export const multiGet = (vm, keys) => {
     return objectSyntax ? mapProps(vm, bindings) : mapPropsToArray(vm, bindings);
 };
 
-export const multiSet = (vm, key, value) => {
+export const multiSet = ({ vm, forceKey }, key, value) => {
     let kv;
     
     if (key && typeof key === 'object' && !Array.isArray(key)) {
@@ -92,12 +92,18 @@ export const multiSet = (vm, key, value) => {
                 owner,
                 depth,
                 values: {},
+                protectedValues: {},
             };
             
             ownerMap.set(owner, o);
         }
         
-        o.values[k] = kv[k];
+        if (owner.protectedKeys && k in owner.protectedKeys && k !== forceKey) {
+            o.protectedValues[k] = kv[k];
+        }
+        else {
+            o.values[k] = kv[k];
+        }
     }
     
     const sortedQueue = [...ownerMap.values()].sort((a, b) => {
@@ -111,11 +117,22 @@ export const multiSet = (vm, key, value) => {
         return a.depth < b.depth ? 1 : -1;
     });
     
+    const promises = [];
+    
     for (const item of sortedQueue) {
-        const { owner, values } = item;
+        const { owner, values, protectedValues } = item;
         
-        owner.setState(values);
+        for (const protectedKey of getKeys(protectedValues)) {
+            const protectedValue = protectedValues[protectedKey];
+            const event = owner.protectedKeys[protectedKey];
+            
+            promises.push(owner.$protectedDispatch(protectedKey, event, protectedValue));
+        }
+        
+        promises.push(owner.setState(values));
     }
+    
+    return Promise.all(promises);
 };
 
 export const accessorizeViewModel = vm => {
@@ -132,6 +149,7 @@ export const accessorizeViewModel = vm => {
     vm.$set[accessorType] = 'set';
     
     vm.$dispatch = vm.$dispatch || vm.parent.$dispatch;
+    vm.$protectedDispatch = vm.$protectedDispatch || vm.parent.$protectedDispatch;
     
     return vm;
 };
