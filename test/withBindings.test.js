@@ -1,7 +1,7 @@
 import React from 'react';
 import { mount } from 'enzyme';
 
-import { withBindings } from '../src';
+import ViewModel, { withBindings } from '../src';
 
 describe('withBindings HOC', () => {
     test('it should return a valid wrapped component', () => {
@@ -18,5 +18,25 @@ describe('withBindings HOC', () => {
               </Component>
             </ComponentWithBindings>
         `);
+    });
+    
+    test("variadic arguments should work", () => {
+        let values;
+        
+        const Component = ({ kramble, xyyf }) => {
+            values = { kramble, xyyf };
+            
+            return null;
+        };
+        
+        const BoundComponent = withBindings('kramble', 'xyyf')(Component);
+        
+        mount(
+            <ViewModel data={{ kramble: "dhak", xyyf: "ongo" }}>
+                <BoundComponent />
+            </ViewModel>
+        );
+        
+        expect(values).toEqual({ kramble: "dhak", xyyf: "ongo" });
     });
 });
