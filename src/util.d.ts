@@ -1,0 +1,10 @@
+export function ucfirst(str: any): string;
+export function getId(prefix: any): string;
+export function chain(proto: any, ...sources: any[]): any;
+export function setterNameForKey(key: any): string;
+export function getKeys(object: any): any[];
+export function getKeyPrefix(key: any): string | symbol;
+export function validKey(key: any): boolean;
+export function findOwner(object: any, entityName: any, key: any): any[];
+export function normalizeProtectedKeys(keys: any): any;
+export function defer(fn: any, timeout?: number): NodeJS.Timeout;
